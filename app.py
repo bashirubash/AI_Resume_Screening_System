@@ -1,83 +1,99 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_sqlalchemy import SQLAlchemy
 import os
+import pdfplumber
 
 app = Flask(__name__)
-app.secret_key = 'supersecretkey'
+app.secret_key = 'your_secret_key'  # Required for session handling
 
-# Configure SQLite database
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///applications.db'
+# Configuration
 app.config['UPLOAD_FOLDER'] = 'uploads'
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///applicants.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Database initialization
 db = SQLAlchemy(app)
 
-# Database model
+# Ensure uploads folder exists
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Models
 class Applicant(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    full_name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(100), nullable=False)
-    phone = db.Column(db.String(15), nullable=False)
-    cv_filename = db.Column(db.String(120), nullable=True)
+    name = db.Column(db.String(100))
+    email = db.Column(db.String(100))
+    cv_text = db.Column(db.Text)
 
-@app.before_first_request
-def create_tables():
+class Job(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100))
+    description = db.Column(db.Text)
+
+# Create tables at startup
+with app.app_context():
     db.create_all()
 
+# Routes
 @app.route('/')
 def index():
-    return render_template('index.html')
+    jobs = Job.query.all()
+    return render_template('index.html', jobs=jobs)
 
 @app.route('/apply', methods=['GET', 'POST'])
 def apply():
     if request.method == 'POST':
-        full_name = request.form['full_name']
+        name = request.form['name']
         email = request.form['email']
-        phone = request.form['phone']
-        cv = request.files.get('cv')
+        cv = request.files['cv']
 
-        if not full_name or not email or not phone:
-            flash('All fields are required!', 'danger')
-            return redirect(url_for('apply'))
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], cv.filename)
+        cv.save(filepath)
 
-        filename = None
-        if cv:
-            filename = cv.filename
-            cv.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        # Extract CV text
+        cv_text = ""
+        with pdfplumber.open(filepath) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    cv_text += text + "\n"
 
-        applicant = Applicant(full_name=full_name, email=email, phone=phone, cv_filename=filename)
+        applicant = Applicant(name=name, email=email, cv_text=cv_text)
         db.session.add(applicant)
         db.session.commit()
-        flash('Application submitted successfully!', 'success')
-        return redirect(url_for('index'))
+
+        return redirect(url_for('success'))
 
     return render_template('apply.html')
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
+@app.route('/success')
+def success():
+    return "Application submitted successfully!"
+
+@app.route('/admin', methods=['GET', 'POST'])
+def admin_login():
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+        username = request.form['username']
+        password = request.form['password']
 
         if username == 'admin' and password == 'Admin123':
             session['admin_logged_in'] = True
-            return redirect(url_for('admin'))
+            return redirect(url_for('admin_dashboard'))
         else:
-            flash("Invalid credentials", "danger")
-            return redirect(url_for('login'))
+            flash('Invalid credentials')
 
-    return render_template('login.html')
+    return render_template('admin_login.html')
 
-@app.route('/admin')
-def admin():
+@app.route('/dashboard')
+def admin_dashboard():
     if not session.get('admin_logged_in'):
-        return redirect(url_for('login'))
+        return redirect(url_for('admin_login'))
+
     applicants = Applicant.query.all()
-    return render_template('admin.html', applicants=applicants)
+    return render_template('admin_dashboard.html', applicants=applicants)
 
 @app.route('/logout')
 def logout():
-    session.pop('admin_logged_in', None)
+    session.clear()
     return redirect(url_for('index'))
 
 if __name__ == '__main__':

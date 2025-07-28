@@ -1,25 +1,22 @@
 from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
-from werkzeug.utils import secure_filename
 import os
-import fitz  # PyMuPDF for PDF parsing
+import pdfplumber
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://username:password@localhost/resume_db'
 app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # Max 2MB upload
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///applicants.db'  # Use PostgreSQL on Render
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# Ensure upload directory exists
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
+# Create uploads folder
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-class Application(db.Model):
+class Applicant(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
     email = db.Column(db.String(100))
     cv_text = db.Column(db.Text)
-    match_score = db.Column(db.Float)
 
 @app.route('/')
 def index():
@@ -30,40 +27,35 @@ def apply():
     if request.method == 'POST':
         name = request.form['name']
         email = request.form['email']
-        file = request.files['cv']
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
+        cv = request.files['cv']
+        
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], cv.filename)
+        cv.save(filepath)
 
-        # Extract text from PDF
-        cv_text = ''
-        try:
-            with fitz.open(filepath) as doc:
-                for page in doc:
-                    cv_text += page.get_text()
-        except Exception as e:
-            cv_text = "Error reading CV: " + str(e)
+        # Extract text using pdfplumber
+        cv_text = ""
+        with pdfplumber.open(filepath) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    cv_text += text + "\n"
 
-        application = Application(name=name, email=email, cv_text=cv_text)
-        db.session.add(application)
+        applicant = Applicant(name=name, email=email, cv_text=cv_text)
+        db.session.add(applicant)
         db.session.commit()
-
-        return redirect(url_for('index'))
+        
+        return redirect(url_for('success'))
+    
     return render_template('apply.html')
 
-@app.route('/screen')
-def screen():
-    keyword = "python flask api database"
-    job_keywords = set(keyword.lower().split())
+@app.route('/success')
+def success():
+    return "Application submitted successfully!"
 
-    applications = Application.query.all()
-    for app_data in applications:
-        cv_words = set(app_data.cv_text.lower().split())
-        matched = job_keywords.intersection(cv_words)
-        app_data.match_score = round(len(matched) / len(job_keywords) * 100, 2) if job_keywords else 0.0
-
-    db.session.commit()
-    return render_template('screen.html', applications=applications)
+@app.route('/admin')
+def admin():
+    applicants = Applicant.query.all()
+    return render_template('admin.html', applicants=applicants)
 
 if __name__ == '__main__':
     app.run(debug=True)

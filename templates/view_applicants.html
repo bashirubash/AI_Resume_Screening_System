@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Applicants for {{ job.title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap.min.css') }}">
+</head>
+<body>
+  <div class="container mt-4">
+    <h2>Applicants for: {{ job.title }}</h2>
+    {% if applicants %}
+      <div class="list-group">
+        {% for applicant in applicants %}
+          <div class="list-group-item">
+            <h5>{{ applicant.name }}</h5>
+            <p><strong>Email:</strong> {{ applicant.email }}</p>
+            <p><strong>CV Content:</strong></p>
+            <div class="border p-2 bg-light">{{ applicant.cv_text }}</div>
+            <p class="text-muted">ID: {{ applicant.id }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="alert alert-warning mt-3">No applicants yet for this job.</div>
+    {% endif %}
+    <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary mt-4">Back to Dashboard</a>
+  </div>
+</body>
+</html>

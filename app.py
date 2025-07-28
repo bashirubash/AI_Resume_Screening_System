@@ -1,32 +1,28 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 import os
-import pdfplumber
-from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-app.secret_key = 'supersecretkey'  # Needed for flash messages
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///applicants.db'  # Change to PostgreSQL URI on Render
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.secret_key = 'supersecretkey'
 
-# Allowed file extensions
-ALLOWED_EXTENSIONS = {'pdf'}
+# Configure SQLite database
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///applications.db'
+app.config['UPLOAD_FOLDER'] = 'uploads'
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
 
-# Ensure uploads folder exists
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
-# Applicant database model
+# Database model
 class Applicant(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
+    full_name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), nullable=False)
-    cv_text = db.Column(db.Text, nullable=False)
+    phone = db.Column(db.String(15), nullable=False)
+    cv_filename = db.Column(db.String(120), nullable=True)
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+@app.before_first_request
+def create_tables():
+    db.create_all()
 
 @app.route('/')
 def index():
@@ -35,54 +31,54 @@ def index():
 @app.route('/apply', methods=['GET', 'POST'])
 def apply():
     if request.method == 'POST':
-        name = request.form.get('name')
-        email = request.form.get('email')
+        full_name = request.form['full_name']
+        email = request.form['email']
+        phone = request.form['phone']
         cv = request.files.get('cv')
 
-        if not (name and email and cv):
-            flash("All fields are required.", "danger")
+        if not full_name or not email or not phone:
+            flash('All fields are required!', 'danger')
             return redirect(url_for('apply'))
 
-        if not allowed_file(cv.filename):
-            flash("Only PDF files are allowed.", "danger")
-            return redirect(url_for('apply'))
+        filename = None
+        if cv:
+            filename = cv.filename
+            cv.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
 
-        filename = secure_filename(cv.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        cv.save(filepath)
-
-        # Extract text from the uploaded PDF
-        cv_text = ""
-        try:
-            with pdfplumber.open(filepath) as pdf:
-                for page in pdf.pages:
-                    text = page.extract_text()
-                    if text:
-                        cv_text += text + "\n"
-        except Exception as e:
-            flash("Error reading PDF file.", "danger")
-            return redirect(url_for('apply'))
-
-        # Save applicant to the database
-        applicant = Applicant(name=name, email=email, cv_text=cv_text)
+        applicant = Applicant(full_name=full_name, email=email, phone=phone, cv_filename=filename)
         db.session.add(applicant)
         db.session.commit()
-
-        return redirect(url_for('success'))
+        flash('Application submitted successfully!', 'success')
+        return redirect(url_for('index'))
 
     return render_template('apply.html')
 
-@app.route('/success')
-def success():
-    return "✅ Application submitted successfully!"
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        if username == 'admin' and password == 'Admin123':
+            session['admin_logged_in'] = True
+            return redirect(url_for('admin'))
+        else:
+            flash("Invalid credentials", "danger")
+            return redirect(url_for('login'))
+
+    return render_template('login.html')
 
 @app.route('/admin')
 def admin():
+    if not session.get('admin_logged_in'):
+        return redirect(url_for('login'))
     applicants = Applicant.query.all()
     return render_template('admin.html', applicants=applicants)
 
-# For local testing
+@app.route('/logout')
+def logout():
+    session.pop('admin_logged_in', None)
+    return redirect(url_for('index'))
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     app.run(debug=True)

@@ -1,39 +1,37 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Applicants</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>View Applicants</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 </head>
-<body class="bg-light">
+<body>
 <div class="container mt-5">
     <h2 class="mb-4">Applicants for "{{ job.title }}"</h2>
-
     {% if applicants %}
-        <table class="table table-bordered">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Match Score</th>
-                    <th>CV</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for applicant in applicants %}
-                <tr>
-                    <td>{{ applicant.name }}</td>
-                    <td>{{ applicant.email }}</td>
-                    <td><strong>{{ applicant.match_score }}%</strong></td>
-                    <td><a href="{{ url_for('static', filename='uploads/' ~ applicant.cv_filename) }}" target="_blank">View CV</a></td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <table class="table table-striped table-bordered">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Match Score (%)</th>
+                <th>CV</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for applicant in applicants %}
+            <tr>
+                <td>{{ applicant.name }}</td>
+                <td>{{ applicant.email }}</td>
+                <td><strong>{{ applicant.match_score }}</strong></td>
+                <td><a href="{{ url_for('static', filename='uploads/' ~ applicant.cv_filename) }}" target="_blank">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
     {% else %}
-        <p>No applicants yet for this job.</p>
+    <p>No applicants yet for this job.</p>
     {% endif %}
-
-    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary mt-3">Back to Dashboard</a>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary mt-3">Back</a>
 </div>
 </body>
 </html>

@@ -1,43 +1,68 @@
-<!-- templates/admin_login.html -->
+<!-- templates/admin_dashboard.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Admin Login</title>
+  <title>Admin Dashboard</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap.min.css') }}">
-  <style>
-    body {
-      background-color: #f8f9fa;
-    }
-    .login-form {
-      max-width: 400px;
-      margin: 60px auto;
-      padding: 30px;
-      background: white;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-  </style>
 </head>
 <body>
-  <div class="container">
-    <div class="login-form">
-      <h4 class="text-center">Admin Login</h4>
-      {% if error %}
-        <div class="alert alert-danger">{{ error }}</div>
-      {% endif %}
-      <form method="POST">
-        <div class="form-group mb-3">
-          <label>Username</label>
-          <input type="text" name="username" class="form-control" required>
-        </div>
-        <div class="form-group mb-3">
-          <label>Password</label>
-          <input type="password" name="password" class="form-control" required>
-        </div>
-        <button type="submit" class="btn btn-primary w-100">Login</button>
-      </form>
+  <div class="container mt-5">
+    <h2>Welcome, Admin</h2>
+
+    <!-- Post a New Job -->
+    <div class="card mt-4">
+      <div class="card-header">Post New Job</div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('post_job') }}">
+          <div class="form-group mb-2">
+            <label>Job Title</label>
+            <input type="text" name="title" class="form-control" required>
+          </div>
+          <div class="form-group mb-2">
+            <label>Description</label>
+            <textarea name="description" class="form-control" required></textarea>
+          </div>
+          <div class="form-group mb-2">
+            <label>Requirements (keywords separated by commas)</label>
+            <textarea name="requirements" class="form-control" required></textarea>
+          </div>
+          <button type="submit" class="btn btn-success">Post Job</button>
+        </form>
+      </div>
     </div>
+
+    <!-- List of Jobs -->
+    <div class="mt-5">
+      <h4>Available Jobs</h4>
+      <ul class="list-group">
+        {% for job in jobs %}
+          <li class="list-group-item">
+            <strong>{{ job.title }}</strong><br>
+            {{ job.description }}<br>
+            <strong>Requirements:</strong> {{ job.requirements }}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <!-- Applicants -->
+    <div class="mt-5">
+      <h4>Applicants</h4>
+      {% for applicant in applicants %}
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5>{{ applicant.name }} ({{ applicant.email }})</h5>
+            <p>
+              <strong>Match Score:</strong> 
+              {{ get_match_score(applicant.cv_text, jobs) }}%
+            </p>
+            <textarea class="form-control" rows="5" readonly>{{ applicant.cv_text }}</textarea>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
   </div>
 </body>
 </html>

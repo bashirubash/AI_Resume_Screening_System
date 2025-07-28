@@ -1,0 +1,33 @@
+from flask_sqlalchemy import SQLAlchemy
+from flask import Flask
+import os
+
+# Set up Flask app and configuration
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///jobs.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Set up SQLAlchemy
+db = SQLAlchemy(app)
+
+# Define models
+class Job(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(120), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    requirements = db.Column(db.Text, nullable=False)
+
+class Applicant(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), nullable=False)
+    cv_filename = db.Column(db.String(150), nullable=False)
+    cv_text = db.Column(db.Text, nullable=False)
+    match_score = db.Column(db.Integer, nullable=True)
+    job_id = db.Column(db.Integer, db.ForeignKey('job.id'), nullable=False)
+
+# Create the database
+with app.app_context():
+    db.create_all()
+
+print("jobs.db created successfully.")
